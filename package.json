@@ -11,8 +11,10 @@
     "index-cvs": "tsx scripts/index-cvs.ts"
   },
   "dependencies": {
+    "@ai-sdk/react": "^4.0.96",
     "@google/genai": "^2.21.0",
     "@pinecone-database/pinecone": "^8.2.0",
+    "ai": "^7.0.93",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.2.6",
     "lucide-react": "^1.42.0",
