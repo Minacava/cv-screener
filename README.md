@@ -56,6 +56,8 @@ Abre [http://localhost:3000](http://localhost:3000).
 2. `scripts/index-cvs` parsea cada PDF, genera embeddings con Gemini y los upserta en Pinecone
 3. La UI envía una query (p. ej. descripción del rol), la embeddea y recupera CVs similares; Gemini puede ayudar a resumir o rankear resultados
 
+Stack decisions (ADR): [docs/adr/001-stack.md](docs/adr/001-stack.md).
+
 ## Notas
 
 - Secrets solo en `.env.local` — ver `.env.example` como plantilla
