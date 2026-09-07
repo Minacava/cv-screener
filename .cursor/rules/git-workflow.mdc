@@ -1,0 +1,31 @@
+---
+description: Git Commit Strategy and Workflow Rules
+globs: *
+alwaysApply: true
+---
+
+# Git Commit Strategy & Workflow Guidelines
+
+## Mandatory Behavior
+At the end of **EVERY** completed response where code has been written, modified, or a script has been generated, you MUST recommend the exact `git` commands to commit the changes.
+
+## Commit Message Format
+Follow **Conventional Commits** syntax:
+- `chore:` Setup, configuration, dependency installation, or project initializations.
+- `feat:` New features, scripts, routes, or functional capabilities.
+- `fix:` Bug fixes or corrections in existing code.
+- `docs:` Documentation changes or README updates.
+- `refactor:` Code refactoring without functionality changes.
+
+## Guidelines for Commits
+1. Keep commits **granular** and focused on a single logical change or script.
+2. Provide short, descriptive commit messages in English.
+3. Include staging commands before the commit command.
+
+## Example Output Format to Display to User:
+---
+### 📌 Recommended Git Commit
+```bash
+git add .
+git commit -m "feat(cv-gen): add script to generate mock PDFs with Gemini"
+```
