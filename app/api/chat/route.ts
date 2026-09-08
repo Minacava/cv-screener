@@ -19,8 +19,10 @@ export const maxDuration = 30;
 
 /** Neighbors to retrieve before filtering. */
 const TOP_K = 5;
-/** Cosine floor for off-topic queries (e.g. weather). */
-const MIN_SCORE = 0.45;
+/** Floor for each individual match. */
+const MIN_SCORE = 0.50;
+/** Top hit must exceed this to show any CVs (filters off-topic queries). */
+const MIN_TOP_SCORE = 0.55;
 
 type ChatMessageSources = {
   sources?: string[];
@@ -37,14 +39,21 @@ function normalizeForMatch(value: string): string {
   return value.toLowerCase().replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** Drop weak hits; if the query names a candidate, keep only that match. */
+/** Drop off-topic/weak hits; if the query names a candidate, keep only that match. */
 function filterRelevantMatches(
   query: string,
   matches: RetrievedCv[]
 ): RetrievedCv[] {
+  if (matches.length === 0) return [];
+
+  // If the best match isn't relevant enough, the query is likely off-topic
+  const topScore = matches[0]?.score ?? 0;
+  if (topScore < MIN_TOP_SCORE) return [];
+
   const aboveFloor = matches.filter((match) => match.score >= MIN_SCORE);
   if (aboveFloor.length === 0) return [];
 
+  // If the query names a candidate, show only that CV
   const normalizedQuery = normalizeForMatch(query);
   const named = aboveFloor.filter((match) =>
     normalizedQuery.includes(normalizeForMatch(match.fullName))
