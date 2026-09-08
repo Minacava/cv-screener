@@ -1,9 +1,10 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 import { writeCandidatePdf } from "../lib/cv/pdf-template";
 import type { CvCandidate } from "../lib/cv/types";
+import { loadEnvFilesIntoProcess } from "../lib/env";
 
 const ROOT = process.cwd();
 const CVS_DIR = path.join(ROOT, "cvs");
@@ -29,33 +30,6 @@ function buildBatchSizes(total: number): number[] {
     remaining -= size;
   }
   return sizes;
-}
-
-async function loadEnvFilesIntoProcess(): Promise<void> {
-  for (const name of [".env.local", ".env"]) {
-    const filePath = path.join(ROOT, name);
-    try {
-      const raw = await readFile(filePath, "utf8");
-      for (const line of raw.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) continue;
-        const eq = trimmed.indexOf("=");
-        if (eq <= 0) continue;
-        const key = trimmed.slice(0, eq).trim();
-        let value = trimmed.slice(eq + 1).trim();
-        if (
-          (value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith("'") && value.endsWith("'"))
-        ) {
-          value = value.slice(1, -1);
-        }
-        if (process.env[key] === undefined) {
-          process.env[key] = value;
-        }
-      }
-    } catch {
-    }
-  }
 }
 
 function waitMs(ms: number): Promise<void> {
@@ -94,10 +68,8 @@ Return ONLY valid JSON.`;
 }
 
 function parseCandidatesJson(text: string, count: number, batchLabel: string): CvCandidate[] {
-  // 1. Quitar markdown code fences
   let cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
   
-  // 2. Extraer el objeto JSON (del primer { al último } balanceado)
   const firstBrace = cleaned.indexOf("{");
   if (firstBrace === -1) {
     throw new Error(`No JSON object found in ${batchLabel}`);
@@ -223,7 +195,8 @@ async function askGeminiForCandidateProfiles(
         (status ? ` (${status})` : "")
       );
       if (status === 503 || status === 429) {
-        await waitMs(2000 * attempt);
+        const delay = status === 429 ? 15_000 * attempt : 2000 * attempt;
+        await waitMs(delay);
         continue;
       }
       throw error;
@@ -244,9 +217,11 @@ async function generateCandidatePhoto(
   imageModel: string,
   candidate: CvCandidate
 ): Promise<Buffer | null> {
-  // Photos must never block PDF writing. No quota / skip → placeholder in pdfkit.
-  if (process.env.SKIP_GEMINI_IMAGE === "1" || skipGeminiImageForRun) {
-    // Si se salta Gemini, usar Pollinations directamente como fallback
+  if (process.env.SKIP_GEMINI_IMAGE === "1") {
+    return null;
+  }
+
+  if (skipGeminiImageForRun) {
     return downloadFallbackAiPortrait(buildPortraitPrompt(candidate));
   }
 
@@ -260,13 +235,12 @@ async function generateCandidatePhoto(
       prompt
     );
     if (fromGemini) return fromGemini;
-    
+
     console.warn(
       `  No Gemini image for ${candidate.fullName}; trying Pollinations fallback…`
     );
   }
 
-  // Fallback automático a Pollinations (gratis, sin cuota)
   return downloadFallbackAiPortrait(prompt);
 }
 
@@ -347,7 +321,6 @@ async function runGenerateCvsPipeline(): Promise<void> {
   const targetCount = resolveTargetCount();
   const geminiKey = process.env.GEMINI_API_KEY;
 
-  // Gemini es requerido para CV generation
   if (!geminiKey) {
     throw new Error(
       "Set GEMINI_API_KEY in .env.local (required for CV generation)"
@@ -364,9 +337,7 @@ async function runGenerateCvsPipeline(): Promise<void> {
     throw new Error("Set GEMINI_IMAGE_MODEL in .env.local");
   }
 
-  console.log(
-    `✓ Using Gemini (${geminiCvModel}) for CV generation (most reliable)`
-  );
+  console.log(`Using Gemini (${geminiCvModel}) for CV generation`);
 
   const gemini = new GoogleGenAI({ apiKey: geminiKey });
 
@@ -394,10 +365,9 @@ async function runGenerateCvsPipeline(): Promise<void> {
       all.push(...batch);
     } catch (error) {
       console.error(
-        `  ⚠️  Batch ${i + 1} failed completely:`,
+        `  Batch ${i + 1} failed completely:`,
         error instanceof Error ? error.message : error
       );
-      // Continuar con siguiente batch
     }
     await waitMs(800);
   }

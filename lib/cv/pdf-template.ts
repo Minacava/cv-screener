@@ -120,7 +120,7 @@ export function writeCandidatePdf(
   });
 }
 
-/** Draw the AI portrait, or a labelled box if photo is missing/invalid. */
+/** Draw portrait image, or a placeholder box when unavailable. */
 function drawCandidatePhotoOrPlaceholder(
   doc: PDFKit.PDFDocument,
   photo: Buffer | null,

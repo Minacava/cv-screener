@@ -41,10 +41,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local MVP tracker (not for reviewers)
+# Local checklist (not committed)
 docs/mvp-checklist.md
 MVP-CHECKLIST.md
 
-# generated CV PDFs (keep folder via .gitkeep)
+# Generated CV PDFs (keep folder via .gitkeep)
 cvs/*
 !cvs/.gitkeep

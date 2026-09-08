@@ -1,22 +1,25 @@
 # CV Screener
 
-App para filtrar CVs con búsqueda semántica: indexa PDFs en Pinecone (embeddings de Gemini) y permite consultar candidatos desde una UI en Next.js.
+Semantic CV screening app: generate synthetic CV PDFs, index them in Pinecone with Gemini embeddings, and query candidates from a Next.js chat UI.
 
 ## Stack
 
 - **Next.js** (App Router) + TypeScript + Tailwind / shadcn
-- **Google Gemini** — CV generation, embeddings, chat (confiable y rápido)
-- **Pollinations.ai** — fallback automático para imágenes (sin cuota)
-- **OpenRouter** (opcional) — chat/RAG alternativo
+- **Google Gemini** — CV generation, embeddings, and chat
+- **Pollinations.ai** — automatic image fallback when Gemini image quota is unavailable
+- **OpenRouter** (optional) — alternative chat / RAG provider
 - **Pinecone** — vector store
-- **pdfkit** / **pdf-parse** — generar y leer CVs en PDF
+- **pdfkit** / **pdf-parse** — generate and extract CV PDFs
 
-## Requisitos
+## Requirements
 
 - Node.js 20+
-- API key de [Google AI Studio](https://aistudio.google.com/apikey) (Gemini — **REQUERIDO** para CV generation + embeddings)
-- API key de [OpenRouter](https://openrouter.ai/settings/keys) (**OPCIONAL** — solo para chat/RAG alternativo)
-- Cuenta free de [Pinecone](https://www.pinecone.io/) con un índice serverless llamado `cv-screener`
+- [Google AI Studio](https://aistudio.google.com/apikey) API key (required for CV generation and embeddings)
+- [OpenRouter](https://openrouter.ai/settings/keys) API key (optional, for chat / RAG)
+- Free [Pinecone](https://www.pinecone.io/) serverless index named `cv-screener`
+  - **Dimensions:** 768 (`gemini-embedding-001` with `outputDimensionality: 768`)
+  - **Metric:** cosine
+  - **Spec:** serverless (free tier)
 
 ## Setup
 
@@ -25,57 +28,58 @@ npm install
 cp .env.example .env.local
 ```
 
-Completa `.env.local` con tus keys (ese archivo **no** se sube a git):
+Fill in `.env.local` with your keys (this file is gitignored):
 
 ```bash
-# REQUERIDO
+# Required
 GEMINI_API_KEY=...
 PINECONE_API_KEY=...
 PINECONE_INDEX_NAME=cv-screener
 
-# Configuración óptima (ver .env.example para detalles)
-GEMINI_CV_GEN_MODEL=gemini-3.6-flash
+# Models (see .env.example)
+GEMINI_CV_GEN_MODEL=gemini-flash-lite-latest
 GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
-GEMINI_EMBEDDING_MODEL=text-embedding-004
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 
-# OPCIONAL - OpenRouter solo para chat/RAG
+# Optional — OpenRouter for chat / RAG
 OPENROUTER_API_KEY=...
 OPENROUTER_CHAT_MODEL=thinkingmachines/inkling-small:free
-
-# Imágenes: comentar para activar (requerido por la tarea técnica)
-# SKIP_GEMINI_IMAGE=1
 ```
 
-## Pipeline de datos
+## Data pipeline
 
 ```bash
-# 1. Generar CVs de ejemplo (PDFs en cvs/)
+# 1. Generate 25 sample CVs (PDFs in cvs/)
 npm run generate-cvs
 
-# 2. Extraer texto, embeddear e indexar en Pinecone
-npm run index-cvs
+# 2. Embed and upsert the 25 CVs into Pinecone namespace "cvs"
+#    RESET_PINECONE=1 clears the namespace first (clean reindex)
+RESET_PINECONE=1 npm run index-cvs
+# → Indexed 25 vectors from 25 CVs
 ```
 
-## Desarrollo
+## Development
 
 ```bash
 npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000).
 
-## Arquitectura (resumen)
+## Architecture
 
-1. `scripts/generate-cvs` crea PDFs sintéticos en `cvs/` usando Gemini para textos y Pollinations/Gemini para fotos
-2. `scripts/index-cvs` parsea cada PDF, genera embeddings con Gemini y los upserta en Pinecone
-3. La UI envía una query, la embeddea y recupera CVs similares; Gemini/OpenRouter genera la respuesta final
+1. `scripts/generate-cvs` creates **25** synthetic PDFs in `cvs/` (Gemini text + Gemini/Pollinations photos)
+2. `scripts/index-cvs` parses each PDF, embeds text (768-dim), and upserts **25 vectors** into Pinecone (`namespace: cvs`)
+3. The UI embeds the user query, retrieves similar CVs, and generates an answer with Gemini or OpenRouter
 
-**Architecture Decisions:**
+**Architecture Decision Records:**
+
 - [ADR 001: Technology Stack](docs/adr/001-stack.md)
 - [ADR 002: CV Generation Strategy](docs/adr/002-cv-generation.md)
+- [ADR 003: RAG Indexing](docs/adr/003-rag-indexing.md)
 
-## Notas
+## Notes
 
-- Secrets solo en `.env.local` — ver `.env.example` como plantilla
-- Los PDFs generados viven en `cvs/` (ignora secrets; no commits de keys)
-- **OpenRouter free tier NO recomendado** para CV generation (se cuelga) — usar Gemini
+- Keep secrets in `.env.local` only — use `.env.example` as the template
+- Generated PDFs live in `cvs/` (ignored by git except `.gitkeep`)
+- CV generation uses Gemini; OpenRouter is reserved for optional chat / RAG
