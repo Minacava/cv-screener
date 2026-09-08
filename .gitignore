@@ -44,7 +44,3 @@ next-env.d.ts
 # Local checklist (not committed)
 docs/mvp-checklist.md
 MVP-CHECKLIST.md
-
-# Generated CV PDFs (keep folder via .gitkeep)
-cvs/*
-!cvs/.gitkeep
