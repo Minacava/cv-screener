@@ -40,11 +40,11 @@ export function PdfPreviewPanel({ fileName, onClose }: PdfPreviewPanelProps) {
           <X className="size-4" />
         </Button>
       </div>
-      <div className="min-h-0 flex-1 bg-[#f0f0eb] dark:bg-[#151512]">
+      <div className="min-h-0 flex-1 bg-[#f0f0eb] p-3 dark:bg-[#151512]">
         <iframe
           title={fileName}
-          src={src}
-          className="h-full w-full border-0"
+          src={`${src}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+          className="h-full w-full rounded-lg border border-[#d5d5d2]/80 bg-white dark:border-[#3a3a35]"
         />
       </div>
     </aside>

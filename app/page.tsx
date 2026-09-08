@@ -3,7 +3,14 @@
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { FileText, Send, Sparkles } from "lucide-react";
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 
 import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { PdfPreviewPanel } from "@/components/chat/pdf-preview-panel";
@@ -21,6 +28,8 @@ const SUGGESTIONS = [
   "Experience in machine learning",
 ] as const;
 
+const TEXTAREA_MAX_HEIGHT_PX = 160;
+
 type MessageSources = {
   sources?: string[];
 };
@@ -37,14 +46,31 @@ function getMessageSources(message: UIMessage): string[] {
   return Array.isArray(metadata?.sources) ? metadata.sources : [];
 }
 
+function syncTextareaHeight(el: HTMLTextAreaElement) {
+  el.style.height = "auto";
+  el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT_PX)}px`;
+  el.scrollTop = el.scrollHeight;
+}
+
 export default function Home() {
   const [input, setInput] = useState("");
   const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, sendMessage, status, error } = useChat();
 
   const isBusy = status === "submitted" || status === "streaming";
   const canSend = input.trim().length > 0 && !isBusy;
+
+  useLayoutEffect(() => {
+    if (textareaRef.current) {
+      syncTextareaHeight(textareaRef.current);
+    }
+  }, [input]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, status]);
 
   async function handleSubmit(event?: FormEvent) {
     event?.preventDefault();
@@ -158,6 +184,7 @@ export default function Home() {
                       </div>
                     );
                   })}
+                  <div ref={messagesEndRef} aria-hidden className="h-px w-full" />
                 </div>
               </ScrollArea>
             )}
@@ -184,7 +211,7 @@ export default function Home() {
                 placeholder="Ask about the CVs…"
                 rows={1}
                 disabled={isBusy}
-                className="min-h-12 max-h-40 flex-1 resize-none border-0 bg-transparent px-4 py-3 text-[15px] leading-relaxed text-[#292929] shadow-none placeholder:text-[#acada8] focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent dark:text-[#f7f7f2] dark:placeholder:text-[#72726e]"
+                className="min-h-12 max-h-40 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-4 py-3 text-[15px] leading-relaxed text-[#292929] shadow-none placeholder:text-[#acada8] focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent dark:text-[#f7f7f2] dark:placeholder:text-[#72726e]"
               />
               <Button
                 type="submit"
