@@ -217,11 +217,8 @@ async function generateCandidatePhoto(
   imageModel: string,
   candidate: CvCandidate
 ): Promise<Buffer | null> {
-  if (process.env.SKIP_GEMINI_IMAGE === "1") {
-    return null;
-  }
-
-  if (skipGeminiImageForRun) {
+  // Skip Gemini image API, but still try Pollinations so PDFs get a portrait.
+  if (process.env.SKIP_GEMINI_IMAGE === "1" || skipGeminiImageForRun) {
     return downloadFallbackAiPortrait(buildPortraitPrompt(candidate));
   }
 
@@ -291,28 +288,40 @@ async function downloadFallbackAiPortrait(prompt: string): Promise<Buffer | null
     `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
     `?width=512&height=512&nologo=true&seed=${Date.now() % 100000}`;
 
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: "image/*" },
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!response.ok) {
-      console.warn(`  Fallback image HTTP ${response.status}`);
-      return null;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: "image/*" },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (response.status === 429 || response.status === 503) {
+        console.warn(`  Fallback image HTTP ${response.status}; retry ${attempt}/4`);
+        await waitMs(4_000 * attempt);
+        continue;
+      }
+      if (!response.ok) {
+        console.warn(`  Fallback image HTTP ${response.status}`);
+        return null;
+      }
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length < 1000) {
+        console.warn("  Fallback image too small; retrying");
+        await waitMs(2_000 * attempt);
+        continue;
+      }
+      return bytes;
+    } catch (error) {
+      console.warn(
+        "  Fallback image failed:",
+        error instanceof Error ? error.message : error
+      );
+      if (attempt < 4) {
+        await waitMs(2_000 * attempt);
+        continue;
+      }
     }
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length < 1000) {
-      console.warn("  Fallback image too small; ignoring");
-      return null;
-    }
-    return bytes;
-  } catch (error) {
-    console.warn(
-      "  Fallback image failed:",
-      error instanceof Error ? error.message : error
-    );
-    return null;
   }
+  return null;
 }
 
 async function runGenerateCvsPipeline(): Promise<void> {
@@ -404,7 +413,8 @@ async function runGenerateCvsPipeline(): Promise<void> {
     console.log(
       `    → ${fileName}${photo ? "" : " (no photo / placeholder)"}`
     );
-    await waitMs(photo ? 400 : 50);
+    // Pace image providers (Gemini / Pollinations) to reduce 429s.
+    await waitMs(photo ? 1_200 : 2_500);
   }
 
   const manifest = candidates.map((c, i) => ({

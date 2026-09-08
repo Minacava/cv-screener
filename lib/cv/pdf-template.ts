@@ -3,6 +3,25 @@ import PDFDocument from "pdfkit";
 
 import type { CvCandidate } from "./types";
 
+const PAGE = {
+  marginX: 48,
+  marginTop: 48,
+  marginBottom: 48,
+  width: 595.28,
+  height: 841.89,
+};
+
+const CONTENT_WIDTH = PAGE.width - PAGE.marginX * 2;
+const PHOTO_SIZE = 84;
+const HEADER_GAP = 16;
+const SECTION_GAP = 16;
+const BLOCK_GAP = 10;
+const LINE = "#d5d5d2";
+const INK = "#292929";
+const MUTED = "#72726e";
+const ACCENT = "#5b6f00";
+const TITLE = "#0e0f0c";
+
 export function writeCandidatePdf(
   candidate: CvCandidate,
   photo: Buffer | null,
@@ -11,7 +30,7 @@ export function writeCandidatePdf(
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: "A4",
-      margin: 50,
+      margin: PAGE.marginX,
       info: {
         Title: `CV — ${candidate.fullName}`,
         Author: "CV Screener mock generator",
@@ -21,106 +40,251 @@ export function writeCandidatePdf(
     const stream = createWriteStream(outPath);
     doc.pipe(stream);
 
-    const left = 50;
-    const photoSize = 88;
-    let y = 50;
-
-    drawCandidatePhotoOrPlaceholder(doc, photo, left, y, photoSize);
-
-    const textLeft = left + photoSize + 18;
-    doc
-      .fillColor("#0e0f0c")
-      .font("Helvetica-Bold")
-      .fontSize(18)
-      .text(candidate.fullName, textLeft, y, { width: 380 });
-    doc
-      .font("Helvetica")
-      .fontSize(11)
-      .fillColor("#5b6f00")
-      .text(candidate.headline, textLeft, doc.y + 4, { width: 380 });
-    doc
-      .fontSize(9)
-      .fillColor("#4e4d4b")
-      .text(
-        `${candidate.email}  ·  ${candidate.phone}  ·  ${candidate.location}`,
-        textLeft,
-        doc.y + 6,
-        { width: 380 }
-      );
-
-    y = Math.max(doc.y, y + photoSize) + 24;
-    doc.y = y;
-
-    const writeSectionTitle = (title: string) => {
-      doc.moveDown(0.6);
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(12)
-        .fillColor("#5b6f00")
-        .text(title);
-      doc
-        .moveTo(left, doc.y + 2)
-        .lineTo(545, doc.y + 2)
-        .strokeColor("#d5d5d2")
-        .stroke();
-      doc.moveDown(0.5);
-      doc.fillColor("#292929");
-    };
-
-    writeSectionTitle("Summary");
-    doc.font("Helvetica").fontSize(10).text(candidate.summary, {
-      align: "left",
-      lineGap: 2,
-    });
-
-    writeSectionTitle("Skills");
-    doc.font("Helvetica").fontSize(10).text(candidate.skills.join(" · "), {
-      lineGap: 2,
-    });
-
-    writeSectionTitle("Experience");
-    for (const job of candidate.experience) {
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(10)
-        .text(`${job.title} — ${job.company}`);
-      doc
-        .font("Helvetica")
-        .fontSize(9)
-        .fillColor("#72726e")
-        .text(`${job.startDate} – ${job.endDate}`);
-      doc.fillColor("#292929");
-      for (const bullet of job.bullets) {
-        doc.font("Helvetica").fontSize(10).text(`• ${bullet}`, {
-          indent: 8,
-          lineGap: 1,
-        });
+    let y = PAGE.marginTop;
+    y = drawHeader(doc, candidate, photo, y);
+    y += SECTION_GAP;
+    y = drawSection(doc, "Summary", y, (cursor) =>
+      drawParagraph(doc, candidate.summary, cursor)
+    );
+    y = drawSection(doc, "Skills", y, (cursor) =>
+      drawParagraph(doc, candidate.skills.join("  ·  "), cursor)
+    );
+    y = drawSection(doc, "Experience", y, (cursor) => {
+      let cy = cursor;
+      for (let i = 0; i < candidate.experience.length; i++) {
+        cy = drawExperience(doc, candidate.experience[i]!, cy);
+        if (i < candidate.experience.length - 1) cy += BLOCK_GAP;
       }
-      doc.moveDown(0.4);
-    }
+      return cy;
+    });
+    y = drawSection(doc, "Education", y, (cursor) => {
+      let cy = cursor;
+      for (let i = 0; i < candidate.education.length; i++) {
+        cy = drawEducation(doc, candidate.education[i]!, cy);
+        if (i < candidate.education.length - 1) cy += BLOCK_GAP;
+      }
+      return cy;
+    });
 
-    writeSectionTitle("Education");
-    for (const ed of candidate.education) {
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(10)
-        .text(`${ed.degree} in ${ed.field}`);
-      doc
-        .font("Helvetica")
-        .fontSize(9)
-        .fillColor("#72726e")
-        .text(`${ed.institution} · ${ed.graduationYear}`);
-      doc.fillColor("#292929");
-      doc.moveDown(0.3);
-    }
-
+    void y;
     doc.end();
     stream.on("finish", () => resolve());
     stream.on("error", reject);
   });
 }
 
-/** Draw portrait image, or a placeholder box when unavailable. */
+function ensureSpace(doc: PDFKit.PDFDocument, y: number, needed: number): number {
+  if (y + needed <= PAGE.height - PAGE.marginBottom) return y;
+  doc.addPage();
+  return PAGE.marginTop;
+}
+
+function drawHeader(
+  doc: PDFKit.PDFDocument,
+  candidate: CvCandidate,
+  photo: Buffer | null,
+  y: number
+): number {
+  const left = PAGE.marginX;
+  const textLeft = left + PHOTO_SIZE + HEADER_GAP;
+  const textWidth = CONTENT_WIDTH - PHOTO_SIZE - HEADER_GAP;
+
+  drawCandidatePhotoOrPlaceholder(doc, photo, left, y, PHOTO_SIZE);
+
+  let textY = y;
+  doc
+    .fillColor(TITLE)
+    .font("Helvetica-Bold")
+    .fontSize(18)
+    .text(candidate.fullName, textLeft, textY, {
+      width: textWidth,
+      lineGap: 2,
+    });
+  textY = doc.y + 4;
+
+  doc
+    .font("Helvetica")
+    .fontSize(11)
+    .fillColor(ACCENT)
+    .text(candidate.headline, textLeft, textY, {
+      width: textWidth,
+      lineGap: 2,
+    });
+  textY = doc.y + 6;
+
+  doc
+    .fontSize(9)
+    .fillColor(MUTED)
+    .text(
+      `${candidate.email}  ·  ${candidate.phone}  ·  ${candidate.location}`,
+      textLeft,
+      textY,
+      { width: textWidth, lineGap: 2 }
+    );
+
+  const headerBottom = Math.max(y + PHOTO_SIZE, doc.y);
+  const ruleY = headerBottom + 14;
+  doc
+    .moveTo(left, ruleY)
+    .lineTo(left + CONTENT_WIDTH, ruleY)
+    .strokeColor(LINE)
+    .lineWidth(1)
+    .stroke();
+
+  return ruleY + 4;
+}
+
+function drawSection(
+  doc: PDFKit.PDFDocument,
+  title: string,
+  y: number,
+  render: (cursor: number) => number
+): number {
+  y = ensureSpace(doc, y, 48);
+  const left = PAGE.marginX;
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .fillColor(ACCENT)
+    .text(title.toUpperCase(), left, y, {
+      width: CONTENT_WIDTH,
+      characterSpacing: 0.6,
+    });
+
+  const underlineY = doc.y + 3;
+  doc
+    .moveTo(left, underlineY)
+    .lineTo(left + CONTENT_WIDTH, underlineY)
+    .strokeColor(LINE)
+    .lineWidth(1)
+    .stroke();
+
+  const bodyStart = underlineY + 10;
+  const end = render(bodyStart);
+  return end + SECTION_GAP;
+}
+
+function drawParagraph(
+  doc: PDFKit.PDFDocument,
+  text: string,
+  y: number
+): number {
+  doc
+    .font("Helvetica")
+    .fontSize(10)
+    .fillColor(INK)
+    .text(text, PAGE.marginX, y, {
+      width: CONTENT_WIDTH,
+      align: "left",
+      lineGap: 3,
+    });
+  return doc.y;
+}
+
+function drawExperience(
+  doc: PDFKit.PDFDocument,
+  job: CvCandidate["experience"][number],
+  y: number
+): number {
+  y = ensureSpace(doc, y, 72);
+  const left = PAGE.marginX;
+  const dateWidth = 120;
+  const titleWidth = CONTENT_WIDTH - dateWidth - 8;
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(10)
+    .fillColor(TITLE)
+    .text(`${job.title} — ${job.company}`, left, y, {
+      width: titleWidth,
+      lineGap: 1,
+    });
+  const titleBottom = doc.y;
+
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor(MUTED)
+    .text(`${job.startDate} – ${job.endDate}`, left + titleWidth + 8, y, {
+      width: dateWidth,
+      align: "right",
+      lineGap: 1,
+    });
+
+  let cursor = Math.max(titleBottom, doc.y) + 4;
+
+  for (const bullet of job.bullets) {
+    cursor = ensureSpace(doc, cursor, 28);
+    cursor = drawBullet(doc, bullet, cursor);
+    cursor += 3;
+  }
+
+  return cursor;
+}
+
+function drawEducation(
+  doc: PDFKit.PDFDocument,
+  ed: CvCandidate["education"][number],
+  y: number
+): number {
+  y = ensureSpace(doc, y, 40);
+  const left = PAGE.marginX;
+  const yearWidth = 48;
+  const titleWidth = CONTENT_WIDTH - yearWidth - 8;
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(10)
+    .fillColor(TITLE)
+    .text(`${ed.degree} in ${ed.field}`, left, y, {
+      width: titleWidth,
+      lineGap: 1,
+    });
+  const titleBottom = doc.y;
+
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor(MUTED)
+    .text(ed.graduationYear, left + titleWidth + 8, y, {
+      width: yearWidth,
+      align: "right",
+    });
+
+  let cursor = Math.max(titleBottom, doc.y) + 2;
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor(MUTED)
+    .text(ed.institution, left, cursor, {
+      width: CONTENT_WIDTH,
+      lineGap: 1,
+    });
+
+  return doc.y;
+}
+
+function drawBullet(
+  doc: PDFKit.PDFDocument,
+  text: string,
+  y: number
+): number {
+  const left = PAGE.marginX;
+  const bulletCol = 12;
+  const textLeft = left + bulletCol;
+  const textWidth = CONTENT_WIDTH - bulletCol;
+
+  doc.font("Helvetica").fontSize(10).fillColor(INK);
+  doc.text("•", left, y, { width: bulletCol, lineGap: 2 });
+  doc.text(text, textLeft, y, {
+    width: textWidth,
+    align: "left",
+    lineGap: 2,
+  });
+  return doc.y;
+}
+
 function drawCandidatePhotoOrPlaceholder(
   doc: PDFKit.PDFDocument,
   photo: Buffer | null,
@@ -130,10 +294,18 @@ function drawCandidatePhotoOrPlaceholder(
 ): void {
   if (photo) {
     try {
+      doc.save();
+      doc.roundedRect(left, y, photoSize, photoSize, 8).clip();
       doc.image(photo, left, y, {
         width: photoSize,
         height: photoSize,
       });
+      doc.restore();
+      doc
+        .roundedRect(left, y, photoSize, photoSize, 8)
+        .lineWidth(1)
+        .strokeColor(LINE)
+        .stroke();
       return;
     } catch {
       // fall through to placeholder
@@ -142,12 +314,14 @@ function drawCandidatePhotoOrPlaceholder(
 
   doc
     .roundedRect(left, y, photoSize, photoSize, 8)
-    .fillAndStroke("#e5eacd", "#5b6f00");
+    .fillAndStroke("#e5eacd", ACCENT);
   doc
-    .fillColor("#5b6f00")
+    .fillColor(ACCENT)
+    .font("Helvetica")
     .fontSize(9)
-    .text(photo ? "Photo" : "No photo", left, y + photoSize / 2 - 4, {
+    .text(photo ? "Photo" : "No photo", left, y + photoSize / 2 - 5, {
       width: photoSize,
       align: "center",
+      lineBreak: false,
     });
 }
