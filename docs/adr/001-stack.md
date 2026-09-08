@@ -1,11 +1,5 @@
 # ADR 001: Technology Stack for CV Screener
 
-| Field | Value |
-|-------|--------|
-| Status | Accepted |
-| Date | 2026-09-07 |
-| Context | Technical take-home: semantic CV screening with RAG |
-
 ## Context
 
 We need a compact full-stack prototype that can:
@@ -22,26 +16,28 @@ Constraints: TypeScript end-to-end, free-tier friendly APIs, easy local demo for
 |-------|--------|----------------|
 | App | Next.js (App Router) + TypeScript | UI and server logic in one codebase |
 | UI | Tailwind CSS + shadcn | Consistent, fast-to-build components |
-| LLM / embeddings | Google Gemini (`gemini-2.5-flash`, `text-embedding-004`) | Generation/ranking and vector embeddings |
-| Vector DB | Pinecone (serverless free tier) | Persistent similarity search |
+| LLM / chat | Google Gemini (`gemini-flash-lite-latest` via `GEMINI_CV_GEN_MODEL` / `GEMINI_CHAT_MODEL`) | CV JSON generation and grounded chat answers |
+| Embeddings | Gemini `gemini-embedding-001` (`outputDimensionality: 768`) | Indexing and query vectors |
+| Images | Gemini `gemini-3.1-flash-image` → Pollinations.ai fallback | CV headshots without blocking PDF write |
+| Vector DB | Pinecone (serverless free tier, cosine, 768) | Persistent similarity search |
 | PDFs | pdfkit (write) + pdf-parse (read) | Mock CV generation and text extraction |
 | Offline pipeline | tsx scripts (`generate-cvs`, `index-cvs`) | Ingestion outside the HTTP request path |
 
-Secrets live in `.env.local` (gitignored). Only `.env.example` is committed.
+Secrets live in `.env.local` (gitignored). Only `.env.example` is committed. Demo PDFs under `cvs/` are committed for review/preview.
 
 ## Consequences
 
 **Benefits**
 
 - Single language for app and scripts
-- One model vendor for both chat and embeddings
+- One model vendor for chat, generation, and embeddings
 - Managed vector store without self-hosting
 - Straightforward deploy path (e.g. Vercel) for the web app
 
 **Trade-offs**
 
 - Coupling to Gemini and Pinecone (keys, quotas, vendor lock-in)
-- Demo requires two API keys and a pre-created Pinecone index
+- Demo requires API keys and a pre-created Pinecone index
 - Ingestion scripts run locally; they are not part of the serverless request lifecycle
 - Out of scope for this prototype: auth, private object storage, multi-tenant isolation, production-scale batch indexing
 
@@ -50,6 +46,7 @@ Secrets live in `.env.local` (gitignored). Only `.env.example` is committed.
 | Alternative | Why not for this prototype |
 |-------------|----------------------------|
 | OpenAI for chat + embeddings | Equally valid RAG pattern; Gemini chosen for free-tier friction and a single model vendor in TypeScript |
+| OpenRouter free tier for CV text | Hung indefinitely in testing; removed from the critical generation path |
 | Local vector store (in-memory / Chroma) | Simpler offline story, but less representative of managed RAG and does not persist across ephemeral serverless instances |
 | Split FastAPI (Python) + React SPA | Stronger ML ecosystem in Python, but more repos, CORS, and deploy surface than needed for this take-home size |
 | LlamaParse (LlamaIndex / LlamaCloud) | Stronger on messy real-world PDFs, but adds another API, cost, and latency; unnecessary while CVs are template-generated |
@@ -85,4 +82,8 @@ Intended PDF generation approach: structured JSON from Gemini, rendered through 
 
 ## Follow-ups
 
-Separate ADRs when locking chunking strategy, retrieval top-k / ranking, and API shape (Route Handlers vs Server Actions).
+Detail decisions live in:
+
+- [ADR 002](002-cv-generation.md) — CV generation
+- [ADR 003](003-rag-indexing.md) — indexing / chunking
+- [ADR 004](004-chat-rag.md) — chat retrieve-and-generate path

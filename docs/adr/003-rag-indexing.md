@@ -1,11 +1,5 @@
 # ADR 003: RAG Indexing Strategy
 
-| Field | Value |
-|-------|--------|
-| Status | Accepted |
-| Date | 2026-09-08 |
-| Context | Technical take-home: index 25 CV PDFs for semantic retrieval |
-
 ## Context
 
 After generating 25 mock CV PDFs, we need a local ingestion path that:
@@ -35,7 +29,7 @@ npm run generate-cvs   # 25 PDFs
 RESET_PINECONE=1 npm run index-cvs   # 25 vectors in namespace cvs
 ```
 
-Shared helpers for the future chat route:
+Shared helpers used by chat ([ADR 004](004-chat-rag.md)):
 
 - `lib/rag/embeddings.ts` — Gemini embed
 - `lib/rag/pinecone.ts` — index client + `PINECONE_CV_NAMESPACE`
