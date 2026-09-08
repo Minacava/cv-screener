@@ -5,6 +5,8 @@ import type { UIMessage } from "ai";
 import { FileText, Send, Sparkles } from "lucide-react";
 import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
+import { MarkdownMessage } from "@/components/chat/markdown-message";
+import { PdfPreviewPanel } from "@/components/chat/pdf-preview-panel";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +39,7 @@ function getMessageSources(message: UIMessage): string[] {
 
 export default function Home() {
   const [input, setInput] = useState("");
+  const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { messages, sendMessage, status, error } = useChat();
 
@@ -65,89 +68,106 @@ export default function Home() {
   }
 
   return (
-    <div className="relative flex min-h-full flex-1 flex-col overflow-hidden bg-[#f7f7f2] text-[#292929] dark:bg-[#1a1a17] dark:text-[#f7f7f2]">
+    <div className="relative flex h-dvh overflow-hidden bg-[#f7f7f2] text-[#292929] dark:bg-[#1a1a17] dark:text-[#f7f7f2]">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(178,194,72,0.14),_transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(254,190,41,0.08),_transparent_45%)] dark:bg-[radial-gradient(ellipse_at_top,_rgba(91,111,0,0.28),_transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(254,190,41,0.06),_transparent_45%)]"
       />
 
-      <main className="relative mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-40 pt-10 sm:px-6 sm:pt-16">
-        {messages.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-12 text-center">
-            <h1 className="animate-in fade-in slide-in-from-bottom-2 max-w-2xl text-[2rem] font-light leading-[1.15] tracking-[-0.02em] text-[#0e0f0c] duration-700 sm:text-[2.75rem] dark:text-[#f7f7f2]">
-              Hello. How can I help you with CVs today?
-            </h1>
-            <div className="animate-in fade-in fill-mode-both flex max-w-2xl flex-wrap items-center justify-center gap-3 delay-150 duration-700">
-              {SUGGESTIONS.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => applySuggestion(suggestion)}
-                  className="rounded-full border border-[#d5d5d2]/80 bg-[#ffffff]/70 px-4 py-2.5 text-[13px] font-normal text-[#4e4d4b] backdrop-blur-sm transition-colors duration-200 hover:border-[#b2c248]/70 hover:bg-[#e5eacd]/70 hover:text-[#5b6f00] dark:border-[#3a3a35] dark:bg-[#242420]/70 dark:text-[#acada8] dark:hover:border-[#788c15]/60 dark:hover:bg-[#2f3a00]/35 dark:hover:text-[#d1e043]"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <ScrollArea className="flex-1">
-            <div className="flex flex-col gap-8 py-4">
-              {messages.map((message) => {
-                const text = getMessageText(message);
-                const sources = getMessageSources(message);
-
-                if (message.role === "user") {
-                  return (
-                    <div key={message.id} className="flex justify-end">
-                      <div className="max-w-[min(85%,36rem)] rounded-[24px] bg-[#e5eacd] px-5 py-3 text-[15px] font-normal leading-relaxed text-[#292929] dark:bg-[#2f3a00]/55 dark:text-[#f7f7f2]">
-                        {text}
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={message.id} className="flex gap-3.5">
-                    <Avatar size="sm" className="mt-1">
-                      <AvatarFallback className="bg-transparent text-[#5b6f00] ring-0 after:hidden dark:text-[#d1e043]">
-                        <Sparkles className="size-4" aria-hidden />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1 space-y-3 pt-0.5">
-                      <p className="whitespace-pre-wrap text-[15px] font-normal leading-[1.7] text-[#292929] dark:text-[#f7f7f2]">
-                        {text || (isBusy ? "…" : "")}
-                      </p>
-                      {sources.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {sources.map((source) => (
-                            <Badge
-                              key={source}
-                              variant="outline"
-                              className="h-auto gap-1.5 rounded-full border-[#d5d5d2] bg-[#ffffff] px-2.5 py-1 text-[12px] font-normal text-[#4e4d4b] dark:border-[#3a3a35] dark:bg-[#242420] dark:text-[#acada8]"
-                            >
-                              <FileText data-icon="inline-start" />
-                              {source}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
+      <div
+        className={cn(
+          "relative flex min-h-0 min-w-0 flex-1 flex-col",
+          selectedPdf ? "lg:max-w-[55%]" : "w-full"
         )}
+      >
+        <main className="relative mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 pt-10 sm:px-6 sm:pt-16">
+          <div className="min-h-0 flex-1 overflow-hidden pb-36">
+            {messages.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-12 text-center">
+                <h1 className="animate-in fade-in slide-in-from-bottom-2 max-w-2xl text-[2rem] font-light leading-[1.15] tracking-[-0.02em] text-[#0e0f0c] duration-700 sm:text-[2.75rem] dark:text-[#f7f7f2]">
+                  Hello. How can I help you with CVs today?
+                </h1>
+                <div className="animate-in fade-in fill-mode-both flex max-w-2xl flex-wrap items-center justify-center gap-3 delay-150 duration-700">
+                  {SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => applySuggestion(suggestion)}
+                      className="rounded-full border border-[#d5d5d2]/80 bg-[#ffffff]/70 px-4 py-2.5 text-[13px] font-normal text-[#4e4d4b] backdrop-blur-sm transition-colors duration-200 hover:border-[#b2c248]/70 hover:bg-[#e5eacd]/70 hover:text-[#5b6f00] dark:border-[#3a3a35] dark:bg-[#242420]/70 dark:text-[#acada8] dark:hover:border-[#788c15]/60 dark:hover:bg-[#2f3a00]/35 dark:hover:text-[#d1e043]"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <ScrollArea className="h-full">
+                <div className="flex flex-col gap-8 py-4 pr-2">
+                  {messages.map((message) => {
+                    const text = getMessageText(message);
+                    const sources = getMessageSources(message);
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 pb-6 sm:px-6">
+                    if (message.role === "user") {
+                      return (
+                        <div key={message.id} className="flex justify-end">
+                          <div className="max-w-[min(85%,36rem)] rounded-[24px] bg-[#e5eacd] px-5 py-3 text-[15px] font-normal leading-relaxed text-[#292929] dark:bg-[#2f3a00]/55 dark:text-[#f7f7f2]">
+                            {text}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={message.id} className="flex gap-3.5">
+                        <Avatar size="sm" className="mt-1">
+                          <AvatarFallback className="bg-transparent text-[#5b6f00] ring-0 after:hidden dark:text-[#d1e043]">
+                            <Sparkles className="size-4" aria-hidden />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1 space-y-3 pt-0.5">
+                          {text ? (
+                            <MarkdownMessage content={text} />
+                          ) : isBusy ? (
+                            <p className="text-[15px] text-[#72726e]">…</p>
+                          ) : null}
+                          {sources.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {sources.map((source) => (
+                                <button
+                                  key={source}
+                                  type="button"
+                                  onClick={() => setSelectedPdf(source)}
+                                  className="inline-flex"
+                                >
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "h-auto cursor-pointer gap-1.5 rounded-full border-[#d5d5d2] bg-[#ffffff] px-2.5 py-1 text-[12px] font-normal text-[#4e4d4b] transition-colors hover:border-[#b2c248] hover:bg-[#e5eacd] hover:text-[#5b6f00] dark:border-[#3a3a35] dark:bg-[#242420] dark:text-[#acada8] dark:hover:border-[#788c15] dark:hover:bg-[#2f3a00]/35 dark:hover:text-[#d1e043]",
+                                      selectedPdf === source &&
+                                        "border-[#b2c248] bg-[#e5eacd] text-[#5b6f00] dark:border-[#788c15] dark:bg-[#2f3a00]/35 dark:text-[#d1e043]"
+                                    )}
+                                  >
+                                    <FileText data-icon="inline-start" />
+                                    {source}
+                                  </Badge>
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </main>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-6 sm:px-6">
           {error ? (
             <p className="pointer-events-auto mb-3 text-center text-sm text-[#e95d3d] dark:text-[#ff736a]">
-              Couldn&apos;t send the message. The{" "}
-              <code className="rounded bg-[#0e0f0c]/5 px-1 dark:bg-[#f7f7f2]/10">
-                /api/chat
-              </code>{" "}
-              endpoint isn&apos;t available yet.
+              Couldn&apos;t send the message. Please try again.
             </p>
           ) : null}
 
@@ -183,7 +203,24 @@ export default function Home() {
             </div>
           </form>
         </div>
-      </main>
+      </div>
+
+      {selectedPdf ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close PDF preview overlay"
+            className="fixed inset-0 z-30 bg-[#0e0f0c]/25 lg:hidden"
+            onClick={() => setSelectedPdf(null)}
+          />
+          <div className="fixed inset-y-0 right-0 z-40 w-full max-w-xl shadow-2xl lg:static lg:z-0 lg:max-w-none lg:w-[45%] lg:shadow-none">
+            <PdfPreviewPanel
+              fileName={selectedPdf}
+              onClose={() => setSelectedPdf(null)}
+            />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
