@@ -1,11 +1,5 @@
 # ADR 004: Chat RAG Query Path
 
-| Field | Value |
-|-------|--------|
-| Status | Accepted |
-| Date | 2026-09-08 |
-| Context | Technical take-home: chat UI that answers only from indexed CVs |
-
 ## Context
 
 After indexing 25 CVs in Pinecone (ADR 003), the product needs a request path that:
