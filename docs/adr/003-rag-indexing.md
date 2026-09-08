@@ -1,10 +1,5 @@
 # ADR 003: RAG Indexing Strategy
 
-| Field | Value |
-|-------|--------|
-| Status | Accepted |
-| Date | 2026-09-08 |
-| Context | Technical take-home: index 25 CV PDFs for semantic retrieval |
 
 ## Context
 
@@ -87,5 +82,5 @@ If real multi-page recruiter PDFs appeared later, we would revisit section or sl
 
 ## Follow-ups
 
-- `/api/chat`: embed query → `topK` in namespace `cvs` → grounded LLM answer + `sources`
-- Evaluate whether section chunks improve precision once chat is live
+- Chat query path documented in [ADR 004](004-chat-rag.md)
+- Evaluate whether section chunks improve precision if candidate-level retrieval is not enough
