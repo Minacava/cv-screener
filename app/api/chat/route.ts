@@ -17,11 +17,42 @@ import {
 
 export const maxDuration = 30;
 
+/** Neighbors to retrieve before filtering. */
 const TOP_K = 5;
+/** Cosine floor for off-topic queries (e.g. weather). */
+const MIN_SCORE = 0.45;
 
 type ChatMessageSources = {
   sources?: string[];
 };
+
+type RetrievedCv = {
+  fullName: string;
+  fileName: string;
+  text: string;
+  score: number;
+};
+
+function normalizeForMatch(value: string): string {
+  return value.toLowerCase().replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Drop weak hits; if the query names a candidate, keep only that match. */
+function filterRelevantMatches(
+  query: string,
+  matches: RetrievedCv[]
+): RetrievedCv[] {
+  const aboveFloor = matches.filter((match) => match.score >= MIN_SCORE);
+  if (aboveFloor.length === 0) return [];
+
+  const normalizedQuery = normalizeForMatch(query);
+  const named = aboveFloor.filter((match) =>
+    normalizedQuery.includes(normalizeForMatch(match.fullName))
+  );
+  if (named.length > 0) return named;
+
+  return aboveFloor;
+}
 
 function getMessageText(message: UIMessage): string {
   return message.parts
@@ -42,24 +73,18 @@ function lastUserQuery(messages: UIMessage[]): string {
   throw new Error("No user message found");
 }
 
-function buildGroundedInstructions(
-  matches: Array<{
-    fullName: string;
-    fileName: string;
-    text: string;
-  }>
-): string {
+function buildGroundedInstructions(matches: RetrievedCv[]): string {
   const context =
     matches.length === 0
       ? "(No matching CVs were retrieved.)"
       : matches
-          .map(
-            (match, index) =>
-              `### Candidate ${index + 1}: ${match.fullName}\n` +
-              `Source file: ${match.fileName}\n` +
-              `${match.text}`
-          )
-          .join("\n\n");
+        .map(
+          (match, index) =>
+            `### Candidate ${index + 1}: ${match.fullName}\n` +
+            `Source file: ${match.fileName}\n` +
+            `${match.text}`
+        )
+        .join("\n\n");
 
   return `You are a CV screening assistant in a polished chat UI.
 
@@ -120,7 +145,7 @@ export async function POST(req: Request) {
     includeMetadata: true,
   });
 
-  const matches = (retrieval.matches ?? [])
+  const scoredMatches = (retrieval.matches ?? [])
     .map((match) => {
       const metadata = match.metadata as CvVectorMetadata | undefined;
       if (!metadata?.fileName || !metadata.text) return null;
@@ -128,10 +153,12 @@ export async function POST(req: Request) {
         fullName: metadata.fullName || metadata.fileName,
         fileName: metadata.fileName,
         text: metadata.text,
+        score: match.score ?? 0,
       };
     })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
+    .filter((item): item is RetrievedCv => item !== null);
 
+  const matches = filterRelevantMatches(query, scoredMatches);
   const sources = [...new Set(matches.map((match) => match.fileName))];
   const google = createGoogleGenerativeAI({ apiKey: geminiKey });
 
@@ -146,7 +173,8 @@ export async function POST(req: Request) {
       stream: result.stream,
       originalMessages: messages,
       messageMetadata: ({ part }): ChatMessageSources | undefined => {
-        if (part.type === "start" || part.type === "finish") {
+        // Sources after text finishes streaming.
+        if (part.type === "finish") {
           return { sources };
         }
         return undefined;

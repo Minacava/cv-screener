@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
   "Show candidates with Python",
-  "UPC graduates",
+  "Candidates with AWS",
   "Summary of Jane Doe",
   "Experience in machine learning",
 ] as const;
