@@ -41,6 +41,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# personal interview notes (not for reviewers)
-docs/interview/**
-!docs/interview/README.md
+# local MVP tracker (not for reviewers)
+docs/mvp-checklist.md
+MVP-CHECKLIST.md
+
+# generated CV PDFs (keep folder via .gitkeep)
+cvs/*
+!cvs/.gitkeep
