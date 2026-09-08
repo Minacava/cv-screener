@@ -1,5 +1,10 @@
 # ADR 003: RAG Indexing Strategy
 
+| Field | Value |
+|-------|--------|
+| Status | Accepted |
+| Date | 2026-09-08 |
+| Context | Technical take-home: index 25 CV PDFs for semantic retrieval |
 
 ## Context
 
