@@ -106,10 +106,10 @@ export default function Home() {
           selectedPdf ? "lg:max-w-[55%]" : "w-full"
         )}
       >
-        <main className="relative mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 pt-10 sm:px-6 sm:pt-16">
-          <div className="min-h-0 flex-1 overflow-hidden pb-36">
+        <main className="relative mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 sm:px-6">
+          <div className="min-h-0 flex-1 overflow-hidden">
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-12 text-center">
+              <div className="flex h-full flex-col items-center justify-center gap-12 pb-32 text-center">
                 <h1 className="animate-in fade-in slide-in-from-bottom-2 max-w-2xl text-[2rem] font-light leading-[1.15] tracking-[-0.02em] text-[#0e0f0c] duration-700 sm:text-[2.75rem] dark:text-[#f7f7f2]">
                   Hello. How can I help you with CVs today?
                 </h1>
@@ -128,7 +128,7 @@ export default function Home() {
               </div>
             ) : (
               <ScrollArea className="h-full">
-                <div className="flex flex-col gap-8 py-4 pr-2">
+                <div className="flex flex-col gap-8 pr-2 pt-10 pb-36 sm:pt-16">
                   {messages.map((message) => {
                     const text = getMessageText(message);
                     const sources = getMessageSources(message);
@@ -191,7 +191,7 @@ export default function Home() {
           </div>
         </main>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-6 sm:px-6">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[#f7f7f2] via-[#f7f7f2]/80 to-transparent px-4 pb-6 pt-16 sm:px-6 dark:from-[#1a1a17] dark:via-[#1a1a17]/80">
           {error ? (
             <p className="pointer-events-auto mb-3 text-center text-sm text-[#e95d3d] dark:text-[#ff736a]">
               Couldn&apos;t send the message. Please try again.
