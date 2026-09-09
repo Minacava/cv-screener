@@ -41,6 +41,7 @@ const STOPWORDS = new Set([
   "profile",
   "summary",
   "experience",
+  "experienced",
   "skilled",
   "skill",
   "skills",
@@ -66,6 +67,27 @@ const STOPWORDS = new Set([
   "entre",
   "también",
   "tambien",
+  "graduated",
+  "graduate",
+  "graduates",
+  "graduation",
+  "university",
+  "universitat",
+  "college",
+  "school",
+  "degree",
+  "studied",
+  "study",
+  "studying",
+  "bachelor",
+  "master",
+  "masters",
+  "education",
+  "edu",
+  "alumni",
+  "alumnus",
+  "attended",
+  "attending",
 ]);
 
 function normalizeText(value: string): string {
@@ -80,7 +102,8 @@ function normalizeText(value: string): string {
 
 /**
  * Extract constraint tokens from a refine / search phrase
- * (e.g. "of these who know AWS" → ["aws"]).
+ * (e.g. "of these who know AWS" → ["aws"],
+ *  "Which candidate graduated from UPC?" → ["upc"]).
  */
 export function constraintTokens(query: string): string[] {
   const normalized = normalizeText(query);
@@ -96,6 +119,11 @@ type TextMatchable = {
   text: string;
 };
 
+function matchesAllTokens(text: string, tokens: string[]): boolean {
+  const haystack = normalizeText(text);
+  return tokens.every((token) => haystack.includes(token));
+}
+
 /**
  * Keep prior-turn CVs whose text contains the new constraint tokens.
  * If no tokens can be extracted, return the full prior set (chat model filters).
@@ -109,10 +137,30 @@ export function filterCandidatesByConstraint<T extends TextMatchable>(
   const tokens = constraintTokens(constraintQuery);
   if (tokens.length === 0) return candidates;
 
-  const matched = candidates.filter((candidate) => {
-    const haystack = normalizeText(candidate.text);
-    return tokens.every((token) => haystack.includes(token));
-  });
+  const matched = candidates.filter((candidate) =>
+    matchesAllTokens(candidate.text, tokens)
+  );
 
   return matched;
+}
+
+/**
+ * If the query has distinctive tokens (e.g. "upc", "python"), return only CVs
+ * whose text contains all of them. Returns null when there are no tokens or no hits
+ * so the caller can fall back to vector-score filtering.
+ */
+export function tryLexicalFilter<T extends TextMatchable>(
+  candidates: T[],
+  query: string
+): T[] | null {
+  if (candidates.length === 0) return null;
+
+  const tokens = constraintTokens(query);
+  if (tokens.length === 0) return null;
+
+  const matched = candidates.filter((candidate) =>
+    matchesAllTokens(candidate.text, tokens)
+  );
+
+  return matched.length > 0 ? matched : null;
 }

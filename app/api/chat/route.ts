@@ -9,7 +9,7 @@ import {
   type UIMessage,
 } from "ai";
 
-import { filterCandidatesByConstraint } from "@/lib/rag/constraint-filter";
+import { filterCandidatesByConstraint, tryLexicalFilter } from "@/lib/rag/constraint-filter";
 import { vectorIdFromFileName } from "@/lib/rag/cv-ids";
 import { embedText } from "@/lib/rag/embeddings";
 import {
@@ -31,12 +31,12 @@ import {
 
 export const maxDuration = 30;
 
-/** Neighbors to retrieve before filtering. */
-const TOP_K = 5;
+/** Neighbors to retrieve before filtering (25 = full demo corpus). */
+const TOP_K = 25;
 /** Floor for each individual match. */
-const MIN_SCORE = 0.5;
+const MIN_SCORE = 0.45;
 /** Top hit must exceed this to show any CVs (filters off-topic queries). */
-const MIN_TOP_SCORE = 0.55;
+const MIN_TOP_SCORE = 0.5;
 
 type ChatMessageSources = {
   sources?: string[];
@@ -185,6 +185,10 @@ async function retrieveFromPineconeQuery(
       plan.candidateName
     );
   }
+
+  // Prefer CVs that literally mention distinctive tokens (e.g. "upc", "python")
+  const lexical = tryLexicalFilter(scoredMatches, searchQuery);
+  if (lexical) return lexical;
 
   return filterRelevantMatches(scoredMatches);
 }

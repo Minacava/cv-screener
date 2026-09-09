@@ -4,6 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { FileText, Send, Sparkles } from "lucide-react";
 import {
+  Fragment,
   useLayoutEffect,
   useRef,
   useState,
@@ -25,26 +26,14 @@ const EMPTY_STATE_SUGGESTIONS = [
   "Show candidates with Python",
   "Candidates with AWS",
   "Summary of Jane Doe",
-  "Experience in machine learning",
+  "Which candidate graduated from UPC?",
 ] as const;
 
-/** Incomplete prompts for the composer — fill in tech / name / domain. */
+/** Demo prompts shown above the composer once a conversation has started. */
 const PROMPT_TEMPLATES = [
-  {
-    label: "Show candidates with",
-    prefix: "Show candidates with ",
-    hint: "technology",
-  },
-  {
-    label: "Summary of",
-    prefix: "Summary of ",
-    hint: "name",
-  },
-  {
-    label: "Experience in",
-    prefix: "Experience in ",
-    hint: "domain",
-  },
+  "Who has experience with Python?",
+  "Which candidate graduated from UPC?",
+  "Summarize the profile of Jane Doe.",
 ] as const;
 
 const TEXTAREA_MAX_HEIGHT_PX = 160;
@@ -156,19 +145,6 @@ export default function Home() {
     });
   }
 
-  function applyPromptTemplate(prefix: string) {
-    if (isBusy) return;
-    setInput(prefix);
-    requestAnimationFrame(() => {
-      const el = textareaRef.current;
-      if (!el) return;
-      el.focus();
-      const cursor = prefix.length;
-      el.setSelectionRange(cursor, cursor);
-      syncTextareaHeight(el);
-    });
-  }
-
   return (
     <div className="relative flex h-dvh overflow-hidden bg-[#f7f7f2] text-[#292929] dark:bg-[#1a1a17] dark:text-[#f7f7f2]">
       <div
@@ -215,7 +191,9 @@ export default function Home() {
                       isBusy;
 
                     // Empty streaming placeholder — ThinkingIndicator renders below instead
-                    if (isPendingAssistant) return null;
+                    if (isPendingAssistant) {
+                      return <Fragment key={message.id} />;
+                    }
 
                     if (message.role === "user") {
                       return (
@@ -240,9 +218,9 @@ export default function Home() {
                           ) : null}
                           {sources.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
-                              {sources.map((source) => (
+                              {sources.map((source, sourceIndex) => (
                                 <button
-                                  key={source}
+                                  key={`${message.id}-${source}-${sourceIndex}`}
                                   type="button"
                                   onClick={() => setSelectedPdf(source)}
                                   className="inline-flex"
@@ -291,21 +269,19 @@ export default function Home() {
           >
             {messages.length > 0 ? (
               <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
-                {PROMPT_TEMPLATES.map((template) => (
+                {PROMPT_TEMPLATES.map((prompt) => (
                   <button
-                    key={template.label}
+                    key={prompt}
                     type="button"
                     disabled={isBusy}
-                    onClick={() => applyPromptTemplate(template.prefix)}
-                    title={`${template.prefix}… (${template.hint})`}
+                    onClick={() => applySuggestion(prompt)}
                     className="disabled:pointer-events-none disabled:opacity-50"
                   >
                     <Badge
                       variant="outline"
-                      className="h-auto cursor-pointer gap-1 rounded-full border-[#d5d5d2]/90 bg-[#ffffff]/85 px-3 py-1.5 text-[12px] font-normal text-[#4e4d4b] backdrop-blur-sm transition-colors hover:border-[#b2c248] hover:bg-[#e5eacd] hover:text-[#5b6f00] dark:border-[#3a3a35] dark:bg-[#242420]/85 dark:text-[#acada8] dark:hover:border-[#788c15] dark:hover:bg-[#2f3a00]/35 dark:hover:text-[#d1e043]"
+                      className="h-auto max-w-[min(100%,20rem)] cursor-pointer whitespace-normal rounded-full border-[#d5d5d2]/90 bg-[#ffffff]/85 px-3 py-1.5 text-left text-[12px] font-normal leading-snug text-[#4e4d4b] backdrop-blur-sm transition-colors hover:border-[#b2c248] hover:bg-[#e5eacd] hover:text-[#5b6f00] dark:border-[#3a3a35] dark:bg-[#242420]/85 dark:text-[#acada8] dark:hover:border-[#788c15] dark:hover:bg-[#2f3a00]/35 dark:hover:text-[#d1e043]"
                     >
-                      {template.label}
-                      <span className="text-[#acada8] dark:text-[#72726e]">…</span>
+                      {prompt}
                     </Badge>
                   </button>
                 ))}
