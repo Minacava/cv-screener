@@ -4,7 +4,6 @@ import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { FileText, Send, Sparkles } from "lucide-react";
 import {
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -14,6 +13,7 @@ import {
 
 import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { PdfPreviewPanel } from "@/components/chat/pdf-preview-panel";
+import { ThinkingIndicator } from "@/components/chat/thinking-indicator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,11 +21,30 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-const SUGGESTIONS = [
+const EMPTY_STATE_SUGGESTIONS = [
   "Show candidates with Python",
   "Candidates with AWS",
   "Summary of Jane Doe",
   "Experience in machine learning",
+] as const;
+
+/** Incomplete prompts for the composer — fill in tech / name / domain. */
+const PROMPT_TEMPLATES = [
+  {
+    label: "Show candidates with",
+    prefix: "Show candidates with ",
+    hint: "technology",
+  },
+  {
+    label: "Summary of",
+    prefix: "Summary of ",
+    hint: "name",
+  },
+  {
+    label: "Experience in",
+    prefix: "Experience in ",
+    hint: "domain",
+  },
 ] as const;
 
 const TEXTAREA_MAX_HEIGHT_PX = 160;
@@ -57,10 +76,34 @@ export default function Home() {
   const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const thinkingRef = useRef<HTMLDivElement>(null);
   const { messages, sendMessage, status, error } = useChat();
 
   const isBusy = status === "submitted" || status === "streaming";
   const canSend = input.trim().length > 0 && !isBusy;
+  const lastMessage = messages[messages.length - 1];
+  const waitingForAssistant = isBusy && lastMessage?.role === "user";
+  const lastAssistantPending =
+    isBusy &&
+    lastMessage?.role === "assistant" &&
+    !getMessageText(lastMessage);
+  const showThinking = waitingForAssistant || lastAssistantPending;
+
+  function scrollChatToBottom(behavior: ScrollBehavior = "smooth") {
+    const anchor = thinkingRef.current ?? messagesEndRef.current;
+    if (!anchor) return;
+
+    const viewport = anchor.closest(
+      '[data-slot="scroll-area-viewport"]'
+    ) as HTMLElement | null;
+
+    if (viewport) {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+      return;
+    }
+
+    anchor.scrollIntoView({ behavior, block: "end" });
+  }
 
   useLayoutEffect(() => {
     if (textareaRef.current) {
@@ -68,9 +111,26 @@ export default function Home() {
     }
   }, [input]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, status]);
+  // Keep the latest message / Thinking row visible inside Radix ScrollArea
+  useLayoutEffect(() => {
+    if (messages.length === 0) return;
+
+    const behavior: ScrollBehavior = showThinking ? "smooth" : "auto";
+    scrollChatToBottom(behavior);
+
+    // Remount / layout settle (empty state → thread, Thinking row insert)
+    const frame = requestAnimationFrame(() => {
+      scrollChatToBottom(behavior);
+    });
+    const timeout = window.setTimeout(() => {
+      scrollChatToBottom(behavior);
+    }, 50);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [messages, status, showThinking]);
 
   async function handleSubmit(event?: FormEvent) {
     event?.preventDefault();
@@ -89,8 +149,24 @@ export default function Home() {
   }
 
   function applySuggestion(prompt: string) {
+    if (isBusy) return;
     setInput(prompt);
-    textareaRef.current?.focus();
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  }
+
+  function applyPromptTemplate(prefix: string) {
+    if (isBusy) return;
+    setInput(prefix);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      const cursor = prefix.length;
+      el.setSelectionRange(cursor, cursor);
+      syncTextareaHeight(el);
+    });
   }
 
   return (
@@ -114,7 +190,7 @@ export default function Home() {
                   Hello. How can I help you with CVs today?
                 </h1>
                 <div className="animate-in fade-in fill-mode-both flex max-w-2xl flex-wrap items-center justify-center gap-3 delay-150 duration-700">
-                  {SUGGESTIONS.map((suggestion) => (
+                  {EMPTY_STATE_SUGGESTIONS.map((suggestion) => (
                     <button
                       key={suggestion}
                       type="button"
@@ -132,6 +208,14 @@ export default function Home() {
                   {messages.map((message) => {
                     const text = getMessageText(message);
                     const sources = getMessageSources(message);
+                    const isPendingAssistant =
+                      message.role === "assistant" &&
+                      !text &&
+                      message.id === lastMessage?.id &&
+                      isBusy;
+
+                    // Empty streaming placeholder — ThinkingIndicator renders below instead
+                    if (isPendingAssistant) return null;
 
                     if (message.role === "user") {
                       return (
@@ -153,8 +237,6 @@ export default function Home() {
                         <div className="min-w-0 flex-1 space-y-3 pt-0.5">
                           {text ? (
                             <MarkdownMessage content={text} />
-                          ) : isBusy ? (
-                            <p className="text-[15px] text-[#72726e]">…</p>
                           ) : null}
                           {sources.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
@@ -184,6 +266,11 @@ export default function Home() {
                       </div>
                     );
                   })}
+                  {showThinking ? (
+                    <div ref={thinkingRef}>
+                      <ThinkingIndicator />
+                    </div>
+                  ) : null}
                   <div ref={messagesEndRef} aria-hidden className="h-px w-full" />
                 </div>
               </ScrollArea>
@@ -202,6 +289,28 @@ export default function Home() {
             onSubmit={handleSubmit}
             className="pointer-events-auto mx-auto w-full max-w-3xl"
           >
+            {messages.length > 0 ? (
+              <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+                {PROMPT_TEMPLATES.map((template) => (
+                  <button
+                    key={template.label}
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => applyPromptTemplate(template.prefix)}
+                    title={`${template.prefix}… (${template.hint})`}
+                    className="disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <Badge
+                      variant="outline"
+                      className="h-auto cursor-pointer gap-1 rounded-full border-[#d5d5d2]/90 bg-[#ffffff]/85 px-3 py-1.5 text-[12px] font-normal text-[#4e4d4b] backdrop-blur-sm transition-colors hover:border-[#b2c248] hover:bg-[#e5eacd] hover:text-[#5b6f00] dark:border-[#3a3a35] dark:bg-[#242420]/85 dark:text-[#acada8] dark:hover:border-[#788c15] dark:hover:bg-[#2f3a00]/35 dark:hover:text-[#d1e043]"
+                    >
+                      {template.label}
+                      <span className="text-[#acada8] dark:text-[#72726e]">…</span>
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="flex items-end gap-1 rounded-[28px] border border-[#d5d5d2]/90 bg-[#ffffff] p-2 shadow-[0_4px_24px_rgba(34,30,15,0.06)] transition-shadow focus-within:border-[#b2c248] focus-within:shadow-[0_6px_28px_rgba(34,30,15,0.08)] dark:border-[#3a3a35] dark:bg-[#242420] dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)] dark:focus-within:border-[#788c15]">
               <Textarea
                 ref={textareaRef}

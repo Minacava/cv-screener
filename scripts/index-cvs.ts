@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import { PDFParse } from "pdf-parse";
 
 import { loadEnvFilesIntoProcess } from "../lib/env";
+import { vectorIdFromFileName } from "../lib/rag/cv-ids";
 import { embedTexts } from "../lib/rag/embeddings";
 import {
   getPineconeIndex,
@@ -40,14 +41,6 @@ function fullNameFromFileName(fileName: string): string {
   const base = fileName.replace(/\.pdf$/i, "");
   const withoutPrefix = base.replace(/^CV_\d+_/, "");
   return withoutPrefix.replace(/_/g, " ").trim() || base;
-}
-
-function vectorIdFromFileName(fileName: string): string {
-  const base = fileName.replace(/\.pdf$/i, "");
-  return `cv-${base}`
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/-+/g, "-");
 }
 
 async function extractPdfText(filePath: string): Promise<string> {
