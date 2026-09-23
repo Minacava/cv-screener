@@ -126,7 +126,3 @@ docs/adr/            # Architecture Decision Records
 - Keep secrets in `.env.local` only — `.env.example` is the committed template
 - Demo PDFs under `cvs/` are committed so previews work without regenerating
 - Chat uses Gemini; image generation falls back to Pollinations when Gemini image quota is unavailable
-
-## Author
-
-**Marina Camacho** ([@Minacava](https://github.com/Minacava))
