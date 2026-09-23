@@ -130,7 +130,3 @@ docs/adr/            # Architecture Decision Records
 ## Author
 
 **Marina Camacho** ([@Minacava](https://github.com/Minacava))
-
----
-
-MIT-style learning / portfolio demo — feel free to fork and adapt for your own experiments.
